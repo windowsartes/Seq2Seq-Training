@@ -1,6 +1,7 @@
-import spacy
+from functools import partial
+
 import torch
-from torchtext.vocab import vocab
+from torchtext.vocab.vocab import Vocab
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
@@ -8,10 +9,10 @@ from torch.utils.data import Dataset
 class Seq2SeqDataset(Dataset):
     def __init__(
         self,
-        source_tokenizer,
-        target_tokenizer,
-        source_vocab: vocab,
-        target_vocab: vocab,
+        source_tokenizer: partial,
+        target_tokenizer: partial,
+        source_vocab: Vocab,
+        target_vocab: Vocab,
         path_to_source_data: str,
         path_to_target_data: str,
     ):
@@ -20,8 +21,8 @@ class Seq2SeqDataset(Dataset):
         self._source_tokenizer = source_tokenizer
         self._target_tokenizer = target_tokenizer
 
-        self._source_vocab: vocab = source_vocab
-        self._target_vocab: vocab = target_vocab
+        self._source_vocab: Vocab = source_vocab
+        self._target_vocab: Vocab = target_vocab
 
         with (
             open(path_to_source_data, 'r') as source_data,

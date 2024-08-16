@@ -1,22 +1,24 @@
-from torch.utils.data import DataLoader
-from torchtext.vocab import vocab
+from functools import partial
 
-from seq2seq_training.src.data import base_classes
+from torch.utils.data import DataLoader
+from torchtext.vocab.vocab import Vocab
+
+from seq2seq_training.src.data.base_classes import Seq2SeqDataset, Collator
 
 
 class DataLoaderFactory:
     @staticmethod
     def construct(
-        source_tokenizer,
-        target_tokenizer,
-        source_vocab: vocab,
-        target_vocab: vocab,
+        source_tokenizer: partial,
+        target_tokenizer: partial,
+        source_vocab: Vocab,
+        target_vocab: Vocab,
         path_to_source_data: str,
         path_to_target_data: str,
         batch_size: int,
         shuffle: bool,
     ) -> DataLoader:
-        dataset: base_classes.Seq2SeqDataset = base_classes.Seq2SeqDataset(
+        dataset: Seq2SeqDataset = Seq2SeqDataset(
             source_tokenizer,
             target_tokenizer,
             source_vocab,
@@ -25,7 +27,7 @@ class DataLoaderFactory:
             path_to_target_data,
         )
 
-        collator: base_classes.Collator = base_classes.Collator(
+        collator: Collator = Collator(
             source_vocab.get_stoi()['<PAD>'],
             target_vocab.get_stoi()['<PAD>'],
         )

@@ -1,14 +1,40 @@
 from collections import Counter
+from functools import partial
 
+from pydantic import BaseModel, ConfigDict
 from torch.utils.data import DataLoader
 from torchtext.vocab import vocab
+from torchtext.vocab.vocab import Vocab
 
 from seq2seq_training.src.data import factories
 
 
+class Dataloaders(BaseModel):
+    model_config: ConfigDict = ConfigDict(  # type: ignore
+        arbitrary_types_allowed=True,
+    )
+
+    train: DataLoader
+    val: DataLoader
+    test: DataLoader
+
+class Vocabs(BaseModel):
+    model_config: ConfigDict = ConfigDict(  # type: ignore
+        arbitrary_types_allowed=True,
+    )
+
+    target: Vocab
+    source: Vocab
+
+
+class TrainingData(BaseModel):
+    dataloaders: Dataloaders
+    vocabs: Vocabs
+
+
 def get_dataloaders(
-    source_tokenizer,
-    target_tokenizer,
+    source_tokenizer: partial,
+    target_tokenizer: partial,
     path_to_train_source_data: str,
     path_to_train_target_data: str,
     path_to_validation_source_data: str,
@@ -30,13 +56,13 @@ def get_dataloaders(
             source_counter.update(source_tokenizer(source_sentence))
             target_counter.update(target_tokenizer(target_sentence))
 
-    source_vocab: vocab = vocab(
+    source_vocab: Vocab = vocab(
         source_counter,
         min_freq = 2,
         specials=('<UNK>', '<BOS>', '<EOS>', '<PAD>'),
     )
 
-    target_vocab: vocab = vocab(
+    target_vocab: Vocab = vocab(
         target_counter,
         min_freq = 2,
         specials=('<UNK>', '<BOS>', '<EOS>', '<PAD>'),
@@ -75,14 +101,16 @@ def get_dataloaders(
         False,
     )
 
-    return {
-        "dataloaders": {
-            "train": train_dataloader,
-            "validation": validation_dataloader,
-            "test": test_dataloader,
-        },
-        "constants": {
-            "source_vocab_size": len(source_vocab),
-            "target_vocab_size": len(target_vocab),
-        },
-    }
+    return TrainingData.model_validate(
+        {
+            "dataloaders": {
+                "train": train_dataloader,
+                "val": validation_dataloader,
+                "test": test_dataloader,
+            },
+            "vocabs": {
+                "source": source_vocab,
+                "target": target_vocab, 
+            },
+        }
+    )
