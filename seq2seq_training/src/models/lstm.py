@@ -4,9 +4,6 @@ import torch
 from torch import nn
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
 class Encoder(nn.Module):
     def __init__(
         self,
@@ -19,7 +16,9 @@ class Encoder(nn.Module):
     ):
         super().__init__()
 
-        self._dropout: nn.Dropout1d = nn.Dropout1d(p=dropout_p)
+        self._dropout: nn.Dropout1d = nn.Dropout1d(
+            p=dropout_p,
+        )
         self._embedding: nn.Embedding = nn.Embedding(source_vocab_size, embedding_size)
         self._rnn: nn.LSTM = nn.LSTM(
             input_size = embedding_size,
@@ -32,8 +31,8 @@ class Encoder(nn.Module):
     def forward(
         self,
         input_tensor: torch.Tensor,
-    ) -> torch.Tensor:
-        embeddings: torch.Tensor = self._embedding(self._dropout(input_tensor))
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        embeddings: torch.Tensor = self._dropout(self._embedding(input_tensor))
         _, (hidden, cell) = self._rnn(embeddings)
 
         return hidden, cell
@@ -64,26 +63,27 @@ class Decoder(nn.Module):
         input_tensor: torch.Tensor,
         hidden: torch.Tensor,
         cell: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         input_tensor = input_tensor.unsqueeze(0)
 
-        embeddings: torch.Tensor = self._embedding(self._dropout(input_tensor))
+        embeddings: torch.Tensor = self._dropout(self._embedding(input_tensor))
         outputs, (hidden, cell) = self._rnn(embeddings, (hidden, cell))
-        predictions: torch.Tensor = self._head(outputs)
-        predictions = predictions.squeeze(0)
+        predictions: torch.Tensor = self._head(outputs).squeeze(0)
 
         return predictions, hidden, cell
 
 
-def Seq2Seq(nn.Module):
+class Seq2Seq(nn.Module):
     def __init__(
         self,
-        encoder,
-        decoder,
+        encoder: Encoder,
+        decoder: Decoder,
         target_vocab_size: int,
     ):
-        self._encoder = encoder
-        self._decoder = decoder
+        super().__init__()
+
+        self._encoder: Encoder = encoder
+        self._decoder: Decoder = decoder
 
         self._target_vocab_size: int = target_vocab_size
 
@@ -93,25 +93,49 @@ def Seq2Seq(nn.Module):
         target_batch: torch.Tensor,
         teacher_force_ratio: float,
     ) -> torch.Tensor:
+        device: torch.device = torch.device(next(self.parameters()).device)
+
         batch_size: int = source_batch.shape[1]
         target_length: int = target_batch.shape[0]
 
         outputs: torch.Tensor = torch.zeros(target_length, batch_size, self._target_vocab_size).to(device)
 
-        hidden, cell = self.encoder(source_batch)
+        hidden, cell = self._encoder(source_batch)
 
-        x = target[0]
+        x : torch.Tensor = target_batch[0]
         for t in range(1, target_length):
-            predictions, hidden, cell = self.decoder(x, hidden, cell)
+            predictions, hidden, cell = self._decoder(x, hidden, cell)
         
             outputs[t] = predictions
-            best_guess = predictions.argmax(1)
+            best_guess: torch.Tensor = predictions.argmax(1)
 
-            x = target[t] if random.random() < teacher_force_ratio else best_guess
+            x = target_batch[t] if random.random() < teacher_force_ratio else best_guess
 
         return outputs
+    
+    def translate(
+        self,
+        source_tensor: torch.Tensor,
+        eos_index: int,
+        bos_index: int,
+        max_length: int,
+    ) -> torch.Tensor:
+        batch_size: int = source_tensor.shape[1]
+            
+        all_eos: torch.Tensor = torch.empty((batch_size,), dtype=torch.long).fill_(eos_index)
+        translation_tensor: torch.Tensor = torch.empty((max_length, batch_size)).fill_(eos_index)
+        
+        hidden, cell = self._encoder(source_tensor)
+                
+        current_position: int = 0
+        
+        x: torch.Tensor = torch.empty((batch_size,), dtype=torch.long).fill_(bos_index)
 
+        while not ((x == all_eos).all().item()) and current_position < max_length:
+            predictions, hidden, cell = self._decoder(x, hidden, cell)
+        
+            x = predictions.argmax(1)
+            translation_tensor[current_position] = x
+            current_position += 1
 
-
-
-
+        return translation_tensor
