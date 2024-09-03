@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from torchtext.vocab import vocab
 from torchtext.vocab.vocab import Vocab
 
-from seq2seq_training.src.data import factories
+from seq2seq_training.src.data.factories import DataLoaderFactory
 
 
 class Dataloaders(BaseModel):
@@ -43,7 +43,7 @@ def get_dataloaders(
     path_to_test_target_data: str,
     batch_size: int,
 ):
-    dataloader_factory: factories.DataLoaderFactory = factories.DataLoaderFactory()
+    dataloader_factory: DataLoaderFactory = DataLoaderFactory()
     
     source_counter: Counter = Counter()
     target_counter: Counter = Counter()
